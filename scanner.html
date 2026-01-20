@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPhone Barcode Scanner</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    padding: 10px;
+    text-align: center;
+}
+video {
+    width: 100%;
+    max-height: 300px;
+    border: 2px solid #000;
+    border-radius: 8px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+th, td {
+    border: 1px solid #000;
+    padding: 8px;
+    font-size: 14px;
+}
+th {
+    background-color: #f0f0f0;
+}
+</style>
+</head>
+
+<body>
+
+<h3>Barcode Scanner</h3>
+<video id="video" autoplay playsinline></video>
+
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Barcode</th>
+            <th>Type</th>
+        </tr>
+    </thead>
+    <tbody id="barcodeTable"></tbody>
+</table>
+
+<script>
+const video = document.getElementById("video");
+const table = document.getElementById("barcodeTable");
+
+let index = 0;
+let scannedCodes = new Set();
+
+async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+    });
+    video.srcObject = stream;
+}
+
+async function startScan() {
+    if (!("BarcodeDetector" in window)) {
+        alert("Barcode scanning not supported on this device");
+        return;
+    }
+
+    const detector = new BarcodeDetector({
+        formats: ["ean_13", "ean_8", "code_128", "upc_a", "upc_e", "qr_code"]
+    });
+
+    setInterval(async () => {
+        try {
+            const barcodes = await detector.detect(video);
+            barcodes.forEach(code => {
+                if (!scannedCodes.has(code.rawValue)) {
+                    scannedCodes.add(code.rawValue);
+                    index++;
+                    table.innerHTML += `
+                        <tr>
+                            <td>${index}</td>
+                            <td>${code.rawValue}</td>
+                            <td>${code.format}</td>
+                        </tr>`;
+                }
+            });
+        } catch (e) {}
+    }, 700);
+}
+
+startCamera().then(startScan);
+</script>
+
+</body>
+</html>
