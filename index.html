@@ -18,6 +18,11 @@ video {
     border: 2px solid black;
     border-radius: 8px;
 }
+button {
+    margin-top: 10px;
+    padding: 10px 15px;
+    font-size: 16px;
+}
 table {
     width: 100%;
     margin-top: 15px;
@@ -25,10 +30,14 @@ table {
 }
 th, td {
     border: 1px solid black;
-    padding: 8px;
+    padding: 6px;
 }
 th {
     background: #eee;
+}
+input {
+    width: 100%;
+    box-sizing: border-box;
 }
 </style>
 </head>
@@ -36,7 +45,10 @@ th {
 <body>
 
 <h3>Barcode Scanner</h3>
+
 <video id="video" autoplay playsinline></video>
+
+<button onclick="addNoCode()">No Code</button>
 
 <table>
 <thead>
@@ -44,18 +56,40 @@ th {
 <th>#</th>
 <th>Barcode</th>
 <th>Format</th>
+<th>Notes</th>
 </tr>
 </thead>
 <tbody id="table"></tbody>
 </table>
 
+<!-- Beep sound -->
+<audio id="beep">
+  <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=" type="audio/wav">
+</audio>
+
 <script>
 const codeReader = new ZXing.BrowserMultiFormatReader();
 const video = document.getElementById("video");
 const table = document.getElementById("table");
+const beep = document.getElementById("beep");
 
 let count = 0;
 let scanned = new Set();
+
+function addRow(barcode, format) {
+    count++;
+    table.innerHTML += `
+      <tr>
+        <td>${count}</td>
+        <td>${barcode}</td>
+        <td>${format}</td>
+        <td><input type="text" placeholder="Add notes"></td>
+      </tr>`;
+}
+
+function addNoCode() {
+    addRow("NO CODE", "-");
+}
 
 codeReader
   .listVideoInputDevices()
@@ -65,13 +99,8 @@ codeReader
       if (result) {
         if (!scanned.has(result.text)) {
           scanned.add(result.text);
-          count++;
-          table.innerHTML += `
-            <tr>
-              <td>${count}</td>
-              <td>${result.text}</td>
-              <td>${result.getBarcodeFormat()}</td>
-            </tr>`;
+          beep.play();
+          addRow(result.text, result.getBarcodeFormat());
         }
       }
     });
