@@ -48,6 +48,7 @@ input {
 
 <video id="video" autoplay playsinline></video>
 
+<br>
 <button onclick="addNoCode()">No Code</button>
 
 <table>
@@ -62,8 +63,8 @@ input {
 <tbody id="table"></tbody>
 </table>
 
-<!-- Beep sound -->
-<audio id="beep">
+<!-- Beep sound (iPhone safe) -->
+<audio id="beep" preload="auto">
   <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=" type="audio/wav">
 </audio>
 
@@ -75,6 +76,21 @@ const beep = document.getElementById("beep");
 
 let count = 0;
 let scanned = new Set();
+let audioUnlocked = false;
+
+/* Unlock audio for iPhone */
+function unlockAudio() {
+  if (!audioUnlocked) {
+    beep.play().then(() => {
+      beep.pause();
+      beep.currentTime = 0;
+      audioUnlocked = true;
+    }).catch(() => {});
+  }
+}
+
+/* Unlock on first touch */
+document.body.addEventListener("touchstart", unlockAudio, { once: true });
 
 function addRow(barcode, format) {
     count++;
@@ -88,6 +104,7 @@ function addRow(barcode, format) {
 }
 
 function addNoCode() {
+    unlockAudio();
     addRow("NO CODE", "-");
 }
 
@@ -99,7 +116,7 @@ codeReader
       if (result) {
         if (!scanned.has(result.text)) {
           scanned.add(result.text);
-          beep.play();
+          if (audioUnlocked) beep.play();
           addRow(result.text, result.getBarcodeFormat());
         }
       }
