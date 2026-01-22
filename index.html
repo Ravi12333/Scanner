@@ -34,7 +34,7 @@ tr:nth-child(even) { background:#f9f9f9; }
   <button id="startBtn">Start Camera & Scanning</button>
   <button id="stopBtn" disabled>Stop Scanning</button>
   <button id="clearBtn">Clear All</button>
-  <button id="exportBtn">Export CSV</button>
+  <button id="exportBtn">Export PDF</button>
 </div>
 
 <div class="msg" id="message">Ready...</div>
@@ -49,10 +49,15 @@ tr:nth-child(even) { background:#f9f9f9; }
   <tbody id="inventoryBody"></tbody>
 </table>
 
-<!-- Beep sound for scan -->
+<!-- Beep sound -->
 <audio id="beepSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
 
+<!-- ZXing library -->
 <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+<!-- jsPDF + autoTable -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.6.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
 <script>
 const codeReader = new ZXing.BrowserMultiFormatReader();
 const video = document.getElementById('preview');
@@ -88,9 +93,7 @@ document.getElementById('startBtn').addEventListener('click', async () => {
         const barcode = result.text.trim();
         if (barcode) addToInventory(barcode, 1);
       }
-      if (err && !(err instanceof ZXing.NotFoundException)) {
-        console.error(err);
-      }
+      if (err && !(err instanceof ZXing.NotFoundException)) console.error(err);
     });
   } catch (err) {
     message.textContent = 'Camera access denied or error: ' + err.message;
@@ -116,7 +119,6 @@ document.getElementById('stopBtn').addEventListener('click', () => {
 // ── Add to inventory safely
 function addToInventory(barcode, qty = 1) {
   const now = Date.now();
-  // Ignore if same barcode scanned within 1.5 seconds
   if (lastScan.barcode === barcode && now - lastScan.time < 1500) return;
 
   lastScan = { barcode, time: now };
@@ -126,7 +128,6 @@ function addToInventory(barcode, qty = 1) {
   inventory.set(barcode, newQty);
   updateTable();
 
-  // Play beep
   beep.currentTime = 0;
   beep.play().catch(e => console.log(e));
 
@@ -155,17 +156,25 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   }
 });
 
-// ── Export CSV
+// ── Export PDF
 document.getElementById('exportBtn').addEventListener('click', () => {
   if (inventory.size === 0) { alert('No items to export!'); return; }
-  const rows = [['Barcode','Total Quantity']];
-  for(const [barcode, qty] of inventory) rows.push([barcode, qty]);
-  const csv = "data:text/csv;charset=utf-8," + rows.map(r=>r.join(",")).join("\n");
-  const link = document.createElement('a');
-  link.setAttribute('href', encodeURI(csv));
-  link.setAttribute('download', "inventory_" + new Date().toISOString().slice(0,10) + ".csv");
-  document.body.appendChild(link); link.click(); document.body.removeChild(link);
-  message.textContent = 'CSV exported!';
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFontSize(16);
+  doc.text("Inventory Report", 14, 20);
+
+  const tableData = [...inventory.entries()].map(([barcode, qty]) => [barcode, qty]);
+  doc.autoTable({
+    startY: 30,
+    head: [['Barcode','Total Quantity']],
+    body: tableData
+  });
+
+  doc.save("inventory_" + new Date().toISOString().slice(0,10) + ".pdf");
+  message.textContent = 'PDF exported!';
   message.className = 'msg success';
 });
 </script>
