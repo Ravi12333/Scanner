@@ -1,212 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>Barcode Inventory Counter - iPhone</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 10px;
-      background: #f5f5f5;
-      color: #333;
-      text-align: center;
-    }
-    h1 {
-      font-size: 1.6rem;
-      margin: 10px 0;
-    }
-    #preview {
-      width: 100%;
-      max-width: 480px;
-      border: 3px solid #007aff;
-      border-radius: 12px;
-      margin: 10px auto;
-      background: black;
-    }
-    #startBtn, #stopBtn, #clearBtn, #exportBtn {
-      font-size: 1.1rem;
-      padding: 12px 24px;
-      margin: 8px 6px;
-      border: none;
-      border-radius: 12px;
-      color: white;
-      cursor: pointer;
-    }
-    #startBtn { background: #007aff; }
-    #stopBtn  { background: #ff3b30; }
-    #clearBtn { background: #8e8e93; }
-    #exportBtn{ background: #34c759; }
-
-    table {
-      width: 100%;
-      max-width: 600px;
-      margin: 20px auto;
-      border-collapse: collapse;
-      font-size: 1.05rem;
-    }
-    th, td {
-      padding: 12px;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
-    }
-    th { background: #007aff; color: white; }
-    tr:nth-child(even) { background: #f9f9f9; }
-    .total-qty {
-      font-weight: bold;
-      color: #007aff;
-      font-size: 1.2rem;
-    }
-    .msg {
-      font-size: 1.1rem;
-      margin: 15px 0;
-      min-height: 1.5em;
-    }
-    .success { color: #34c759; }
-    .error   { color: #ff3b30; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>iPhone Barcode Inventory Counter</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin:0; padding:10px; background:#f5f5f5; color:#333; text-align:center;}
+h1 { font-size:1.6rem; margin:10px 0; }
+video { width:100%; max-width:480px; border:3px solid #007aff; border-radius:12px; margin:10px auto; background:black; }
+button { font-size:1.1rem; padding:12px 24px; margin:8px 6px; border:none; border-radius:12px; color:white; cursor:pointer; }
+#startBtn { background:#007aff; }
+#stopBtn  { background:#ff3b30; }
+#clearBtn { background:#8e8e93; }
+#exportBtn{ background:#34c759; }
+table { width:100%; max-width:600px; margin:20px auto; border-collapse:collapse; font-size:1.05rem; }
+th, td { padding:12px; border-bottom:1px solid #ddd; text-align:left; }
+th { background:#007aff; color:white; }
+tr:nth-child(even) { background:#f9f9f9; }
+.total-qty { font-weight:bold; color:#007aff; font-size:1.2rem; }
+.msg { font-size:1.1rem; margin:15px 0; min-height:1.5em; }
+.success { color:#34c759; }
+.error   { color:#ff3b30; }
+</style>
 </head>
 <body>
 
-  <h1>Barcode Inventory Counter</h1>
-  <p>Scan barcodes — same item with different quantities? It adds them up automatically!</p>
+<h1>iPhone Barcode Inventory Counter</h1>
+<p>Scan hundreds of items — quantities automatically added per barcode!</p>
 
-  <video id="preview" autoplay playsinline muted></video>
+<video id="preview" autoplay playsinline muted></video>
 
-  <div>
-    <button id="startBtn">Start Camera & Scanning</button>
-    <button id="stopBtn" disabled>Stop Scanning</button>
-    <button id="clearBtn">Clear All</button>
-    <button id="exportBtn">Export CSV</button>
-  </div>
+<div>
+  <button id="startBtn">Start Camera & Scanning</button>
+  <button id="stopBtn" disabled>Stop Scanning</button>
+  <button id="clearBtn">Clear All</button>
+  <button id="exportBtn">Export CSV</button>
+</div>
 
-  <div class="msg" id="message">Ready...</div>
+<div class="msg" id="message">Ready...</div>
 
-  <table id="inventoryTable">
-    <thead>
-      <tr>
-        <th>Barcode</th>
-        <th>Total Quantity</th>
-      </tr>
-    </thead>
-    <tbody id="inventoryBody"></tbody>
-  </table>
+<table id="inventoryTable">
+  <thead>
+    <tr>
+      <th>Barcode</th>
+      <th>Total Quantity</th>
+    </tr>
+  </thead>
+  <tbody id="inventoryBody"></tbody>
+</table>
 
-  <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
-  <script>
-    const codeReader = new ZXing.BrowserMultiFormatReader();
-    const video = document.getElementById('preview');
-    const message = document.getElementById('message');
-    let scanning = false;
-    let stream = null;
+<!-- Beep sound for scan -->
+<audio id="beepSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
 
-    const inventory = new Map();
-    const inventoryBody = document.getElementById('inventoryBody');
+<script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+<script>
+const codeReader = new ZXing.BrowserMultiFormatReader();
+const video = document.getElementById('preview');
+const message = document.getElementById('message');
+const beep = document.getElementById('beepSound');
+let scanning = false;
+let stream = null;
 
-    document.getElementById('startBtn').addEventListener('click', async () => {
-      if (scanning) return;
+const inventory = new Map();
+const inventoryBody = document.getElementById('inventoryBody');
 
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
-        video.srcObject = stream;
-        await video.play();
+// Track last scanned barcode to prevent accidental double-count
+let lastScan = { barcode: null, time: 0 };
 
-        message.textContent = 'Camera started — scanning...';
-        message.className = 'msg success';
+// ── Start scanning
+document.getElementById('startBtn').addEventListener('click', async () => {
+  if (scanning) return;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = stream;
+    await video.play();
 
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('stopBtn').disabled = false;
+    message.textContent = 'Camera started — scanning...';
+    message.className = 'msg success';
 
-        scanning = true;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
 
-        codeReader.decodeFromVideoDevice(null, 'preview', (result, err) => {
-          if (result) {
-            const barcode = result.text.trim();
-            addToInventory(barcode, 1);
-            if (navigator.vibrate) navigator.vibrate(100);
-          }
-          if (err && !(err instanceof ZXing.NotFoundException)) {
-            console.error(err);
-          }
-        });
-      } catch (err) {
-        message.textContent = 'Camera access denied or error: ' + err.message;
-        message.className = 'msg error';
+    scanning = true;
+
+    codeReader.decodeFromVideoDevice(null, 'preview', (result, err) => {
+      if (result) {
+        const barcode = result.text.trim();
+        if (barcode) addToInventory(barcode, 1);
+      }
+      if (err && !(err instanceof ZXing.NotFoundException)) {
+        console.error(err);
       }
     });
+  } catch (err) {
+    message.textContent = 'Camera access denied or error: ' + err.message;
+    message.className = 'msg error';
+  }
+});
 
-    document.getElementById('stopBtn').addEventListener('click', () => {
-      if (!scanning) return;
-      codeReader.reset();
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      video.srcObject = null;
-      scanning = false;
+// ── Stop scanning
+document.getElementById('stopBtn').addEventListener('click', () => {
+  if (!scanning) return;
+  codeReader.reset();
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  video.srcObject = null;
+  scanning = false;
 
-      message.textContent = 'Scanning stopped.';
-      message.className = 'msg';
+  message.textContent = 'Scanning stopped.';
+  message.className = 'msg';
 
-      document.getElementById('startBtn').disabled = false;
-      document.getElementById('stopBtn').disabled = true;
-    });
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+});
 
-    function addToInventory(barcode, qty = 1) {
-      if (!barcode) return;
-      const current = inventory.get(barcode) || 0;
-      const newQty = current + qty;
-      inventory.set(barcode, newQty);
+// ── Add to inventory safely
+function addToInventory(barcode, qty = 1) {
+  const now = Date.now();
+  // Ignore if same barcode scanned within 1.5 seconds
+  if (lastScan.barcode === barcode && now - lastScan.time < 1500) return;
 
-      updateTable();
-      message.textContent = `Scanned: ${barcode} (+${qty}) → Total: ${newQty}`;
-      message.className = 'msg success';
-    }
+  lastScan = { barcode, time: now };
 
-    function updateTable() {
-      inventoryBody.innerHTML = '';
-      const sorted = [...inventory.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      for (const [barcode, qty] of sorted) {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>${barcode}</td><td class="total-qty">${qty}</td>`;
-        inventoryBody.appendChild(row);
-      }
-    }
+  const current = inventory.get(barcode) || 0;
+  const newQty = current + qty;
+  inventory.set(barcode, newQty);
+  updateTable();
 
-    document.getElementById('clearBtn').addEventListener('click', () => {
-      if (confirm('Clear all scanned items?')) {
-        inventory.clear();
-        updateTable();
-        message.textContent = 'Inventory cleared.';
-        message.className = 'msg';
-      }
-    });
+  // Play beep
+  beep.currentTime = 0;
+  beep.play().catch(e => console.log(e));
 
-    document.getElementById('exportBtn').addEventListener('click', () => {
-      if (inventory.size === 0) {
-        alert('No items to export!');
-        return;
-      }
+  message.textContent = `Scanned: ${barcode} (+${qty}) → Total: ${newQty}`;
+  message.className = 'msg success';
+}
 
-      const rows = [['Barcode', 'Total Quantity']];
-      for (const [barcode, qty] of inventory) rows.push([barcode, qty]);
+// ── Update table
+function updateTable() {
+  inventoryBody.innerHTML = '';
+  const sorted = [...inventory.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  for (const [barcode, qty] of sorted) {
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${barcode}</td><td class="total-qty">${qty}</td>`;
+    inventoryBody.appendChild(row);
+  }
+}
 
-      let csvContent = "data:text/csv;charset=utf-8," 
-        + rows.map(row => row.join(",")).join("\n");
+// ── Clear all
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (confirm('Clear all scanned items?')) {
+    inventory.clear();
+    updateTable();
+    message.textContent = 'Inventory cleared.';
+    message.className = 'msg';
+  }
+});
 
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "inventory_" + new Date().toISOString().slice(0,10) + ".csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      message.textContent = 'CSV exported!';
-      message.className = 'msg success';
-    });
-  </script>
+// ── Export CSV
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if (inventory.size === 0) { alert('No items to export!'); return; }
+  const rows = [['Barcode','Total Quantity']];
+  for(const [barcode, qty] of inventory) rows.push([barcode, qty]);
+  const csv = "data:text/csv;charset=utf-8," + rows.map(r=>r.join(",")).join("\n");
+  const link = document.createElement('a');
+  link.setAttribute('href', encodeURI(csv));
+  link.setAttribute('download', "inventory_" + new Date().toISOString().slice(0,10) + ".csv");
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  message.textContent = 'CSV exported!';
+  message.className = 'msg success';
+});
+</script>
 </body>
 </html>
