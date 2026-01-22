@@ -1,182 +1,201 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>iPhone Barcode Inventory Counter</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPhone Barcode Scanner</title>
+
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
 <style>
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin:0; padding:10px; background:#f5f5f5; color:#333; text-align:center;}
-h1 { font-size:1.6rem; margin:10px 0; }
-video { width:100%; max-width:480px; border:3px solid #007aff; border-radius:12px; margin:10px auto; background:black; }
-button { font-size:1.1rem; padding:12px 24px; margin:8px 6px; border:none; border-radius:12px; color:white; cursor:pointer; }
-#startBtn { background:#007aff; }
-#stopBtn  { background:#ff3b30; }
-#clearBtn { background:#8e8e93; }
-#exportBtn{ background:#34c759; }
-table { width:100%; max-width:600px; margin:20px auto; border-collapse:collapse; font-size:1.05rem; }
-th, td { padding:12px; border-bottom:1px solid #ddd; text-align:left; }
-th { background:#007aff; color:white; }
-tr:nth-child(even) { background:#f9f9f9; }
-.total-qty { font-weight:bold; color:#007aff; font-size:1.2rem; }
-.msg { font-size:1.1rem; margin:15px 0; min-height:1.5em; }
-.success { color:#34c759; }
-.error   { color:#ff3b30; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    text-align: center;
+    padding: 20px;
+    background-color: #f5f5f5;
+    margin: 0;
+}
+h3 {
+    margin-bottom: 20px;
+    color: #333;
+}
+video {
+    width: 100%;
+    max-width: 400px;
+    border: 2px solid #ccc;
+    border-radius: 12px;
+    background-color: #000;
+}
+.button-container {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 15px;
+}
+button {
+    padding: 12px 24px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+#no-code-btn {
+    background-color: #ff9500;
+    color: white;
+}
+#export-pdf-btn {
+    background-color: #007aff;
+    color: white;
+}
+button:hover {
+    opacity: 0.9;
+}
+table {
+    width: 100%;
+    max-width: 600px;
+    margin: 20px auto 0;
+    border-collapse: collapse;
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+th {
+    background: #f0f0f0;
+    color: #333;
+}
+input {
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    font-size: 14px;
+}
 </style>
 </head>
+
 <body>
 
-<h1>iPhone Barcode Inventory Counter</h1>
-<p>Scan hundreds of items — quantities automatically added per barcode!</p>
+<h3>Barcode Scanner</h3>
 
-<video id="preview" autoplay playsinline muted></video>
+<video id="video" autoplay playsinline></video>
 
-<div>
-  <button id="startBtn">Start Camera & Scanning</button>
-  <button id="stopBtn" disabled>Stop Scanning</button>
-  <button id="clearBtn">Clear All</button>
-  <button id="exportBtn">Export PDF</button>
+<div class="button-container">
+    <button id="no-code-btn" onclick="addNoCode()">No Code</button>
+    <button id="export-pdf-btn" onclick="exportToPDF()">Export to PDF</button>
 </div>
 
-<div class="msg" id="message">Ready...</div>
-
-<table id="inventoryTable">
-  <thead>
-    <tr>
-      <th>Barcode</th>
-      <th>Total Quantity</th>
-    </tr>
-  </thead>
-  <tbody id="inventoryBody"></tbody>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Barcode</th>
+<th>Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
 </table>
 
-<!-- Beep sound -->
-<audio id="beepSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
-
-<!-- ZXing library -->
-<script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
-<!-- jsPDF + autoTable -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.6.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<!-- Beep sound (iPhone safe) -->
+<audio id="beep" preload="auto">
+  <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=" type="audio/wav">
+</audio>
 
 <script>
 const codeReader = new ZXing.BrowserMultiFormatReader();
-const video = document.getElementById('preview');
-const message = document.getElementById('message');
-const beep = document.getElementById('beepSound');
-let scanning = false;
-let stream = null;
+const video = document.getElementById("video");
+const tableBody = document.getElementById("table");
+const beep = document.getElementById("beep");
 
-const inventory = new Map();
-const inventoryBody = document.getElementById('inventoryBody');
+let count = 0;
+let scanned = new Set();
+let audioUnlocked = false;
 
-// Track last scanned barcode to prevent accidental double-count
-let lastScan = { barcode: null, time: 0 };
-
-// ── Start scanning
-document.getElementById('startBtn').addEventListener('click', async () => {
-  if (scanning) return;
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    video.srcObject = stream;
-    await video.play();
-
-    message.textContent = 'Camera started — scanning...';
-    message.className = 'msg success';
-
-    document.getElementById('startBtn').disabled = true;
-    document.getElementById('stopBtn').disabled = false;
-
-    scanning = true;
-
-    codeReader.decodeFromVideoDevice(null, 'preview', (result, err) => {
-      if (result) {
-        const barcode = result.text.trim();
-        if (barcode) addToInventory(barcode, 1);
-      }
-      if (err && !(err instanceof ZXing.NotFoundException)) console.error(err);
-    });
-  } catch (err) {
-    message.textContent = 'Camera access denied or error: ' + err.message;
-    message.className = 'msg error';
+/* Unlock audio for iPhone */
+function unlockAudio() {
+  if (!audioUnlocked) {
+    beep.play().then(() => {
+      beep.pause();
+      beep.currentTime = 0;
+      audioUnlocked = true;
+    }).catch(() => {});
   }
-});
-
-// ── Stop scanning
-document.getElementById('stopBtn').addEventListener('click', () => {
-  if (!scanning) return;
-  codeReader.reset();
-  if (stream) stream.getTracks().forEach(track => track.stop());
-  video.srcObject = null;
-  scanning = false;
-
-  message.textContent = 'Scanning stopped.';
-  message.className = 'msg';
-
-  document.getElementById('startBtn').disabled = false;
-  document.getElementById('stopBtn').disabled = true;
-});
-
-// ── Add to inventory safely
-function addToInventory(barcode, qty = 1) {
-  const now = Date.now();
-  if (lastScan.barcode === barcode && now - lastScan.time < 1500) return;
-
-  lastScan = { barcode, time: now };
-
-  const current = inventory.get(barcode) || 0;
-  const newQty = current + qty;
-  inventory.set(barcode, newQty);
-  updateTable();
-
-  beep.currentTime = 0;
-  beep.play().catch(e => console.log(e));
-
-  message.textContent = `Scanned: ${barcode} (+${qty}) → Total: ${newQty}`;
-  message.className = 'msg success';
 }
 
-// ── Update table
-function updateTable() {
-  inventoryBody.innerHTML = '';
-  const sorted = [...inventory.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-  for (const [barcode, qty] of sorted) {
+/* Unlock on first touch */
+document.body.addEventListener("touchstart", unlockAudio, { once: true });
+
+function addRow(barcode, format) {
+    count++;
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${barcode}</td><td class="total-qty">${qty}</td>`;
-    inventoryBody.appendChild(row);
-  }
+    row.innerHTML = `
+        <td>${count}</td>
+        <td>${barcode}</td>
+        <td>${format}</td>
+        <td><input type="text" placeholder="Add notes"></td>
+    `;
+    tableBody.appendChild(row);
 }
 
-// ── Clear all
-document.getElementById('clearBtn').addEventListener('click', () => {
-  if (confirm('Clear all scanned items?')) {
-    inventory.clear();
-    updateTable();
-    message.textContent = 'Inventory cleared.';
-    message.className = 'msg';
-  }
-});
+function addNoCode() {
+    unlockAudio();
+    addRow("NO CODE", "-");
+}
 
-// ── Export PDF
-document.getElementById('exportBtn').addEventListener('click', () => {
-  if (inventory.size === 0) { alert('No items to export!'); return; }
+function exportToPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
 
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
+    const tableData = [];
+    const rows = tableBody.querySelectorAll('tr');
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = [
+            cells[0].textContent,
+            cells[1].textContent,
+            cells[2].textContent,
+            cells[3].querySelector('input').value || ''
+        ];
+        tableData.push(rowData);
+    });
 
-  doc.setFontSize(16);
-  doc.text("Inventory Report", 14, 20);
+    doc.autoTable({
+        head: [['#', 'Barcode', 'Format', 'Notes']],
+        body: tableData,
+        theme: 'striped',
+        margin: { top: 20 },
+        styles: { fontSize: 10 }
+    });
 
-  const tableData = [...inventory.entries()].map(([barcode, qty]) => [barcode, qty]);
-  doc.autoTable({
-    startY: 30,
-    head: [['Barcode','Total Quantity']],
-    body: tableData
-  });
+    doc.save('scanned_barcodes.pdf');
+}
 
-  doc.save("inventory_" + new Date().toISOString().slice(0,10) + ".pdf");
-  message.textContent = 'PDF exported!';
-  message.className = 'msg success';
-});
+codeReader
+  .listVideoInputDevices()
+  .then(devices => {
+    const cameraId = devices[devices.length - 1].deviceId; // Prefer back camera on iPhone
+    codeReader.decodeFromVideoDevice(cameraId, video, (result, err) => {
+      if (result) {
+        if (!scanned.has(result.text)) {
+          scanned.add(result.text);
+          if (audioUnlocked) {
+            beep.play();
+          }
+          addRow(result.text, ZXing.BarcodeFormat[result.format]);
+        }
+      }
+    });
+  })
+  .catch(err => alert(err));
 </script>
+
 </body>
 </html>
